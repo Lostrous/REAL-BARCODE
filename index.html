@@ -5,180 +5,222 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Barcode Generator</title>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.0/dist/JsBarcode.all.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
+    <script src="https://unpkg.com/dynamsoft-javascript-barcode/dist/dynamsoft.barcode.min.js"></script>
     <style>
-        #barcodeContainer, #previousCodes {
-            margin-top: 20px;
+        /* Basic styling for the page */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
         }
-        #scannerContainer {
-            width: 100%;
-            height: 300px;
-            border: 1px solid black;
-            margin-top: 20px;
+        #barcode {
+            margin: 20px 0;
         }
         .code-item {
-            margin-top: 10px;
+            margin: 10px 0;
         }
-        .code-item img {
-            margin-right: 10px;
+        #scanner-container {
+            width: 100%;
+            height: 300px;
+            position: relative;
+        }
+        #video {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            object-fit: cover;
         }
     </style>
 </head>
 <body>
     <h1>Barcode Generator</h1>
-    <input type="text" id="inputCode" placeholder="Enter code here">
-    <button onclick="generateBarcode()">Generate Barcode</button>
-    <div id="barcodeContainer">
-        <img id="barcodeImage" alt="Barcode">
-    </div>
-    <div id="confirmationContainer" style="display:none;">
-        <p id="newCode"></p>
-        <button onclick="confirmCode()">Yes</button>
-        <button onclick="rejectCode()">No</button>
+    
+    <label for="code">Enter Code:</label>
+    <input type="text" id="code" />
+    <button onclick="formatCode()">Format Code</button>
+
+    <div id="result-container">
+        <svg id="barcode"></svg>
+        <button id="confirm-button" style="display: none;" onclick="confirmCode()">Confirm Code</button>
     </div>
     
-    <button onclick="startScan()">Start Scan</button>
-    <div id="scannerContainer"></div>
-
     <h2>Previous Codes</h2>
-    <input type="text" id="searchInput" placeholder="Search previous codes">
-    <button onclick="searchCodes()">Search</button>
-    <div id="previousCodes"></div>
+    <input type="text" id="searchBar" oninput="searchPreviousCodes()" placeholder="Search previous codes" />
+    <ul id="previous-codes-list"></ul>
+    
+    <h2>Barcode Scanner</h2>
+    <div id="scanner-container">
+        <video id="video"></video>
+    </div>
+    <button onclick="startScan()">Start Scan</button>
 
     <script>
-        let generatedCode = '';
-        let previousCodes = [];
+        const prefix = '9715';
+        const baseSuffix = '3300000101';
+        let currentResult = '';
 
-        function generateBarcode() {
-            const code = document.getElementById('inputCode').value;
-            generatedCode = code;
-            JsBarcode("#barcodeImage", code, {
-                format: "CODE128",
-                width: 2,
-                height: 100
-            });
-            document.getElementById('newCode').innerText = `Is this code correct? ${code}`;
-            document.getElementById('confirmationContainer').style.display = 'block';
+        function formatCode() {
+            let code = document.getElementById('code').value;
+            let suffix = baseSuffix;
+            currentResult = `${prefix}${code}${suffix}`;
+            document.getElementById('result').value = currentResult;
+            
+            // Generate barcode
+            generateBarcode(currentResult);
+            
+            // Show button for confirming or adjusting the suffix
+            document.getElementById('confirm-button').style.display = 'block';
         }
 
         function confirmCode() {
-            const name = prompt('Enter a name for this code:');
-            if (name) {
-                previousCodes.push({ code: generatedCode, name: name });
-                updatePreviousCodes();
+            let userResponse = prompt('Is the number correct? (Yes/No)').toLowerCase();
+            
+            if (userResponse === 'no') {
+                adjustSuffix();
+            } else if (userResponse === 'yes') {
+                let codeName = prompt('Please give a name for this code');
+                if (codeName) {
+                    storePreviousCode(codeName, currentResult);
+                }
+                alert('Number finalized.');
+                document.getElementById('confirm-button').style.display = 'none';
+            } else {
+                alert('Invalid response. Please enter "Yes" or "No".');
             }
-            document.getElementById('confirmationContainer').style.display = 'none';
         }
 
-        function rejectCode() {
-            let counter = 1;
-            let newCode;
-            do {
-                newCode = generatedCode.replace(/01$/, (`0${counter}`).slice(-2));
-                counter++;
-            } while (previousCodes.some(item => item.code === newCode) && counter <= 9);
-            if (counter > 9) {
-                alert('All possible codes have been tried.');
-                return;
+        function adjustSuffix() {
+            let count = 1;
+            
+            function updateCode() {
+                let newSuffix = baseSuffix.replace('01', String(count + 1).padStart(2, '0'));
+                count++;
+                currentResult = `${prefix}${document.getElementById('code').value}${newSuffix}`;
+                document.getElementById('result').value = currentResult;
+                generateBarcode(currentResult); // Update barcode with new code
+
+                // Show button for confirming or adjusting the new code
+                document.getElementById('confirm-button').style.display = 'block';
+
+                if (count > 9) {
+                    alert('You have reached the maximum allowed number adjustments.');
+                    document.getElementById('confirm-button').style.display = 'none';
+                }
             }
-            generatedCode = newCode;
-            JsBarcode("#barcodeImage", newCode, {
+
+            updateCode();
+        }
+
+        function generateBarcode(text) {
+            JsBarcode("#barcode", text, {
                 format: "CODE128",
+                lineColor: "#000",
                 width: 2,
-                height: 100
+                height: 100,
+                displayValue: true
             });
-            document.getElementById('newCode').innerText = `Is this code correct? ${newCode}`;
         }
 
-        function updatePreviousCodes() {
-            const container = document.getElementById('previousCodes');
-            container.innerHTML = '';
+        function storePreviousCode(name, code) {
+            let previousCodes = JSON.parse(localStorage.getItem('previousCodes')) || [];
+            previousCodes.push({ name, code });
+            localStorage.setItem('previousCodes', JSON.stringify(previousCodes));
+            displayPreviousCodes();
+        }
+
+        function displayPreviousCodes() {
+            let previousCodes = JSON.parse(localStorage.getItem('previousCodes')) || [];
+            let list = document.getElementById('previous-codes-list');
+            list.innerHTML = '';
             previousCodes.forEach((item, index) => {
-                const div = document.createElement('div');
-                div.classList.add('code-item');
-                const img = document.createElement('img');
-                img.id = `prevBarcode${index}`;
-                div.appendChild(img);
-                const name = document.createElement('span');
-                name.innerText = ` ${item.name} - ${item.code}`;
-                div.appendChild(name);
-                const editBtn = document.createElement('button');
-                editBtn.innerText = 'Code did not work';
-                editBtn.onclick = () => {
-                    const newCode = prompt('Enter new code:');
-                    if (newCode) {
-                        const newIndex = previousCodes.findIndex(p => p.code === item.code);
-                        previousCodes[newIndex].code = newCode;
-                        previousCodes[newIndex].name = prompt('Enter new name:');
-                        updatePreviousCodes();
-                    }
-                };
-                div.appendChild(editBtn);
-                container.appendChild(div);
-                JsBarcode(`#prevBarcode${index}`, item.code, {
-                    format: "CODE128",
-                    width: 2,
-                    height: 50
-                });
+                let li = document.createElement('li');
+                li.classList.add('code-item');
+                li.innerHTML = `${item.name}: ${item.code} 
+                                <button onclick="codeDidNotWork(${index})">Code did not work</button>
+                                <button onclick="viewAsBarcode(${index})">View as Barcode</button>`;
+                list.appendChild(li);
             });
         }
 
-        function searchCodes() {
-            const query = document.getElementById('searchInput').value.toLowerCase();
-            const filteredCodes = previousCodes.filter(item => item.name.toLowerCase().includes(query));
-            const container = document.getElementById('previousCodes');
-            container.innerHTML = '';
+        function codeDidNotWork(index) {
+            let previousCodes = JSON.parse(localStorage.getItem('previousCodes')) || [];
+            let codeData = previousCodes[index];
+
+            let currentSuffix = codeData.code.slice(-10);
+            let currentIncrement = parseInt(currentSuffix.slice(8, 10), 10);
+
+            if (currentIncrement < 9) {
+                currentIncrement++;
+                let newSuffix = currentSuffix.slice(0, 8) + String(currentIncrement).padStart(2, '0');
+                let newCode = codeData.code.slice(0, -10) + newSuffix;
+
+                codeData.code = newCode;
+                previousCodes[index] = codeData;
+                localStorage.setItem('previousCodes', JSON.stringify(previousCodes));
+
+                displayPreviousCodes();
+                document.getElementById('result').value = newCode;
+                generateBarcode(newCode);
+            } else {
+                alert("The maximum number of retries has been reached.");
+            }
+        }
+
+        function searchPreviousCodes() {
+            let searchTerm = document.getElementById('searchBar').value.toLowerCase();
+            let previousCodes = JSON.parse(localStorage.getItem('previousCodes')) || [];
+            let filteredCodes = previousCodes.filter(item => 
+                item.name.toLowerCase().includes(searchTerm) || 
+                item.code.includes(searchTerm)
+            );
+
+            let list = document.getElementById('previous-codes-list');
+            list.innerHTML = '';
             filteredCodes.forEach((item, index) => {
-                const div = document.createElement('div');
-                div.classList.add('code-item');
-                const img = document.createElement('img');
-                img.id = `searchBarcode${index}`;
-                div.appendChild(img);
-                const name = document.createElement('span');
-                name.innerText = ` ${item.name} - ${item.code}`;
-                div.appendChild(name);
-                container.appendChild(div);
-                JsBarcode(`#searchBarcode${index}`, item.code, {
-                    format: "CODE128",
-                    width: 2,
-                    height: 50
-                });
+                let li = document.createElement('li');
+                li.classList.add('code-item');
+                li.innerHTML = `${item.name}: ${item.code} 
+                                <button onclick="codeDidNotWork(${index})">Code did not work</button>
+                                <button onclick="viewAsBarcode(${index})">View as Barcode</button>`;
+                list.appendChild(li);
             });
         }
 
         function startScan() {
-            Quagga.init({
-                inputStream: {
-                    name: "Live",
-                    type: "LiveStream",
-                    target: document.querySelector('#scannerContainer')
-                },
-                decoder: {
-                    readers: ["code_128_reader"]
+            const video = document.getElementById('video');
+            
+            // Initialize the barcode reader
+            Dynamsoft.BarcodeReader.decodeFromVideoDevice(
+                null, video, (result, error) => {
+                    if (result) {
+                        // Stop scanning and process the result
+                        Dynamsoft.BarcodeReader.stop().then(() => {
+                            document.getElementById('code').value = result.barcodeText;
+                            formatCode();
+                        }).catch(err => {
+                            console.error('Failed to stop barcode scanner:', err);
+                        });
+                    } else if (error) {
+                        console.log(`Barcode scanning error: ${error}`);
+                    }
                 }
-            }, function(err) {
-                if (err) {
-                    console.error("QuaggaJS initialization error:", err);
-                    return;
-                }
-                Quagga.start();
-            });
-
-            Quagga.onDetected(function(data) {
-                const scannedCode = data.codeResult.code;
-                console.log('Detected code:', scannedCode);
-                const formattedCode = scannedCode.replace(/01$/, '01'); // Replace with your format logic
-                JsBarcode("#barcodeImage", formattedCode, {
-                    format: "CODE128",
-                    width: 2,
-                    height: 100
-                });
-                document.getElementById('newCode').innerText = `Is this code correct? ${formattedCode}`;
-                document.getElementById('confirmationContainer').style.display = 'block';
-                Quagga.stop(); // Stop scanning after successful detection
-                document.querySelector('#scannerContainer').style.display = 'none'; // Hide scanner container
+            ).catch(err => {
+                console.error('Failed to start barcode scanner:', err);
             });
         }
+
+        function viewAsBarcode(index) {
+            let previousCodes = JSON.parse(localStorage.getItem('previousCodes')) || [];
+            let codeData = previousCodes[index];
+            
+            document.getElementById('result').value = codeData.code;
+            generateBarcode(codeData.code);
+        }
+
+        window.onload = function() {
+            displayPreviousCodes();
+        };
     </script>
 </body>
 </html>
