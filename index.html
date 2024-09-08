@@ -158,7 +158,7 @@
                 }
             }, function(err) {
                 if (err) {
-                    console.error(err);
+                    console.error("QuaggaJS initialization error:", err);
                     return;
                 }
                 Quagga.start();
@@ -176,6 +176,7 @@
                 document.getElementById('newCode').innerText = `Is this code correct? ${formattedCode}`;
                 document.getElementById('confirmationContainer').style.display = 'block';
                 Quagga.stop(); // Stop scanning after successful detection
+                document.querySelector('#scannerContainer').style.display = 'none'; // Hide scanner container
             });
         }
     </script>
