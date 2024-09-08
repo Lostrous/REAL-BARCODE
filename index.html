@@ -4,10 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Barcode Generator</title>
+    <!-- Include JsBarcode Library -->
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.0/dist/JsBarcode.all.min.js"></script>
+    <!-- Include Dynamsoft Barcode Library -->
     <script src="https://unpkg.com/dynamsoft-javascript-barcode/dist/dynamsoft.barcode.min.js"></script>
     <style>
-        /* Basic styling for the page */
         body {
             font-family: Arial, sans-serif;
             margin: 20px;
@@ -62,13 +63,19 @@
 
         function formatCode() {
             let code = document.getElementById('code').value;
+            if (code.trim() === '') {
+                alert('Please enter a code.');
+                return;
+            }
             let suffix = baseSuffix;
             currentResult = `${prefix}${code}${suffix}`;
-            document.getElementById('result').value = currentResult;
             
             // Generate barcode
             generateBarcode(currentResult);
             
+            // There was no 'result' element; removed this section
+            // document.getElementById('result').value = currentResult;
+
             // Show button for confirming or adjusting the suffix
             document.getElementById('confirm-button').style.display = 'block';
         }
@@ -97,7 +104,10 @@
                 let newSuffix = baseSuffix.replace('01', String(count + 1).padStart(2, '0'));
                 count++;
                 currentResult = `${prefix}${document.getElementById('code').value}${newSuffix}`;
-                document.getElementById('result').value = currentResult;
+                
+                // There was no 'result' element; removed this section
+                // document.getElementById('result').value = currentResult;
+                
                 generateBarcode(currentResult); // Update barcode with new code
 
                 // Show button for confirming or adjusting the new code
@@ -136,10 +146,17 @@
             previousCodes.forEach((item, index) => {
                 let li = document.createElement('li');
                 li.classList.add('code-item');
-                li.innerHTML = `${item.name}: ${item.code} 
-                                <button onclick="codeDidNotWork(${index})">Code did not work</button>
-                                <button onclick="viewAsBarcode(${index})">View as Barcode</button>`;
+                li.innerHTML = `${item.name}: <svg id="barcode${index}" class="barcode"></svg> 
+                                <button onclick="codeDidNotWork(${index})">Code did not work</button>`;
                 list.appendChild(li);
+                // Generate barcode for the previous codes
+                JsBarcode(`#barcode${index}`, item.code, {
+                    format: "CODE128",
+                    lineColor: "#000",
+                    width: 2,
+                    height: 100,
+                    displayValue: true
+                });
             });
         }
 
@@ -160,7 +177,8 @@
                 localStorage.setItem('previousCodes', JSON.stringify(previousCodes));
 
                 displayPreviousCodes();
-                document.getElementById('result').value = newCode;
+                // There was no 'result' element; removed this section
+                // document.getElementById('result').value = newCode;
                 generateBarcode(newCode);
             } else {
                 alert("The maximum number of retries has been reached.");
@@ -180,17 +198,23 @@
             filteredCodes.forEach((item, index) => {
                 let li = document.createElement('li');
                 li.classList.add('code-item');
-                li.innerHTML = `${item.name}: ${item.code} 
-                                <button onclick="codeDidNotWork(${index})">Code did not work</button>
-                                <button onclick="viewAsBarcode(${index})">View as Barcode</button>`;
+                li.innerHTML = `${item.name}: <svg id="barcode${index}" class="barcode"></svg> 
+                                <button onclick="codeDidNotWork(${index})">Code did not work</button>`;
                 list.appendChild(li);
+                // Generate barcode for the filtered codes
+                JsBarcode(`#barcode${index}`, item.code, {
+                    format: "CODE128",
+                    lineColor: "#000",
+                    width: 2,
+                    height: 100,
+                    displayValue: true
+                });
             });
         }
 
         function startScan() {
             const video = document.getElementById('video');
             
-            // Initialize the barcode reader
             Dynamsoft.BarcodeReader.decodeFromVideoDevice(
                 null, video, (result, error) => {
                     if (result) {
@@ -208,14 +232,6 @@
             ).catch(err => {
                 console.error('Failed to start barcode scanner:', err);
             });
-        }
-
-        function viewAsBarcode(index) {
-            let previousCodes = JSON.parse(localStorage.getItem('previousCodes')) || [];
-            let codeData = previousCodes[index];
-            
-            document.getElementById('result').value = codeData.code;
-            generateBarcode(codeData.code);
         }
 
         window.onload = function() {
